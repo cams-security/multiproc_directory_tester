@@ -1,0 +1,35 @@
+import pandas as pd, requests, bs4
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
+tio_df = pd.read_csv(r'{CSV Name}')
+pool = ThreadPool(4)
+df = pd.DataFrame(columns=["URL","Title", "Status"])
+
+def requestor_threaded(url):
+        try:
+            r = requests.get(url=url,verify=False,timeout=10)
+            html = bs4.BeautifulSoup(r.text,features="html.parser")
+            return [url, html.title.text, r.status_code]
+        except:
+            url = str(url).replace("https","http")
+            r = requests.get(url=url,verify=False,timeout=10)
+            html = bs4.BeautifulSoup(r.text,features="html.parser")
+            return [url, html.title.text, r.status_code]
+
+for index, row in tio_df.iterrows():
+    urls = []
+    ip = str(row['IP Address'])
+    port = str(row['Port'])
+    text = str(row['Plugin Text'])
+    text = str(text.split("\n")[2]).split(",")
+    for uri in text:
+        urls.append("https://{0}:{1}{2}".format(ip, port, uri).replace(" ",""))
+    try:
+        results = [pool.apply(requestor_threaded, args=(url,)) for url in urls]
+    except:
+        continue
+    for x in results:
+        df = df.append({'URL':x[0],'Title':x[1],'Status':x[2]}, ignore_index=True)
+    print("[x] STATUS: {0} DONE".format(ip))
+
+df.to_csv('web_dir_checker.csv')
